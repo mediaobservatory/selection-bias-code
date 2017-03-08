@@ -3,7 +3,7 @@
 % as an optimization procedure (https://arxiv.org/abs/1205.2618).
 clear;
 
-iter     =   5e5; % number of iterations
+iter     =   2e5; % number of iterations
 alpha    =  0.05; % learning rate
 lambda   =  0.01; % regularizer
 sigma    =   0.1; % std for random initialization
