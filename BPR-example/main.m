@@ -10,7 +10,7 @@ sigma    =   0.1; % std for random initialization
 mu       =   0.0; % mean for random initialization
 K        =    20; % number of latent factors
 reload   =     1; % Reload data
-subset   =   1e6; % Don't load entire dataset
+subset   =   1e5; % Don't load entire dataset
 path     = 'data/hashed.csv'; % Path to dataset
 
 % M events
@@ -22,16 +22,46 @@ path     = 'data/hashed.csv'; % Path to dataset
 
 %% Create testing and training sets
 
-% Split test-train
-datalen  = size(R_idx,1);
-rp       = randperm(datalen);
-pivot    = ceil(datalen/10);
-R_idx_te = R_idx(rp(1:pivot),:);
-R_idx_tr = R_idx(rp(pivot+1:end),:);
+tetr_split = 1;
 
-% Create the User-Item interaction matrix
-Rall = sparse(R_idx(:,2), R_idx(:,1), 1);
-Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1); 
+datalen  = size(R_idx,1);
+
+if tetr_split == 1 % Leave one out test-train split
+    
+    idx_te = zeros(datalen, 1); % Test indices
+    
+    for i=1:datalen
+       idxs = find(R_idx(:,1) == R_idx(i));
+       rand_idx = randi(length(idxs), 1);
+       idx_te(i) = idxs(rand_idx);
+    end
+    
+    % Create index mask
+    % Test
+    test_mask         = zeros(length(R_idx), 1);
+    test_mask(idx_te) = 1;
+    test_mask         = logical(test_mask);
+    % Train
+    train_mask = ~test_mask;
+
+    R_idx_tr = R_idx(train_mask, :);
+    R_idx_te = R_idx(test_mask , :);
+
+    Rall = sparse(R_idx(:,2),    R_idx(:,1),    ones(length(R_idx),1),    N, M);
+    Rtr  = sparse(R_idx_tr(:,2), R_idx_tr(:,1), ones(length(R_idx_tr),1), N, M);
+    Rte  = sparse(R_idx_te(:,2), R_idx_te(:,1), ones(length(R_idx_te),1), N, M);
+    
+elseif tetr_split == 2     % Random test-train split
+    
+    rp       = randperm(datalen);
+    pivot    = ceil(datalen/10);
+    R_idx_te = R_idx(rp(1:pivot),:);
+    R_idx_tr = R_idx(rp(pivot+1:end),:);
+
+    % Create the User-Item interaction matrix
+    Rall = sparse(R_idx(:,2), R_idx(:,1), 1);
+    Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1);
+end
 
 if length(R_idx) ~= length(nonzeros(Rall))
     disp('Problem in Rall.')
@@ -40,8 +70,8 @@ end
 %% Run BPR
 
 % Initialize low-rank matrices with random values
-P = sigma.*randn(N,K) + mu; % Events
-Q = sigma.*randn(K,M) + mu; % Sources
+P = sigma.*randn(N,K) + mu; % Sources
+Q = sigma.*randn(K,M) + mu; % Events
 
 for step=1:iter
     
@@ -98,7 +128,7 @@ plot_names  = 1;      % Plot names on scatter
 plot_subset = 1:1000; % Only plot top 1K sources
 
 % Get index of top 1K sources
-[~,I]  = sort(sum(Rall,2), 1, 'descend');
+[~,I]  = sort(sum(Rall, 2), 1, 'descend');
 subidx = I(plot_subset);
 
 % Run t-SNE on subset
@@ -152,7 +182,6 @@ if recompute_dist == 1
     dist_ap      = zeros(1, length(subidx));
 
     for i=1:length(subidx)
-        i
         source          = Rall(subidx(i),:);
         dist_reuters(i) = dist(reuters_id, source);
         dist_ap(i)      = dist(ap_id, source);
@@ -162,7 +191,7 @@ end
 
 % Plot
 figure;
-scatter(ydata(:,1), ydata(:,2), [], dist_ap);
+scatter(ydata(:,1), ydata(:,2), [], dist_reuters);
 hold on;
 
 % Scatter
