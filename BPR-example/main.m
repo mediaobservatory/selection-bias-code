@@ -141,14 +141,14 @@ dist = @(id, source) nnz(source & Rall(id,:)) / sum(source);
 recompute_dist = 1;
 
 if recompute_dist == 1
-    dist_reuters = [];
-    dist_ap = [];
+    dist_reuters = zeros(length(subidx));
+    dist_ap = zeros(length(subidx));
 
     for i=1:length(subidx)
         i
         source = Rall(subidx(i),:);
-        dist_reuters = [dist_reuters; dist(reuters_id, source)];
-        dist_ap      = [dist_ap; dist(ap_id, source)];
+        dist_reuters(i) = dist(reuters_id, source);
+        dist_ap(i) = dist(ap_id, source);
     end
 
 end
@@ -161,7 +161,7 @@ hold on;
 % Scatter
 scatter(ydata(reuters_idx,1), ydata(reuters_idx,2), 300, 'r', 'filled');
 scatter(ydata(ap_idx,1),      ydata(ap_idx,2),      300, 'r', 'filled');
-% Overlay names
+Overlay namesg
 text(ydata(reuters_idx,1)+dx, ydata(reuters_idx,2)+dy, 'reuters');
 text(ydata(ap_idx,1)+dx,      ydata(ap_idx,2)+dy,      'ap');
 
