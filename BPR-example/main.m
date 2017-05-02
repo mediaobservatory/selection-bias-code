@@ -3,6 +3,13 @@
 % as an optimization procedure (https://arxiv.org/abs/1205.2618).
 %clear;
 
+% TODO 
+% * Show some events we know ( P(i) . Q then check index of leftout observation )
+% * Show the sources we know
+% * Cross validation
+%
+
+
 iter     =   2e6; % number of iterations
 alpha    =  0.05; % learning rate
 lambda   =  0.01; % regularizer
@@ -10,12 +17,12 @@ sigma    =   0.1; % std for random initialization
 mu       =   0.0; % mean for random initialization
 K        =    20; % number of latent factors
 reload   =     1; % Reload data
-subset   =   1e5; % Don't load entire dataset
+subset   =   1e6; % Don't load entire dataset
 path     = 'data/hashed.csv'; % Path to dataset
 
 % M events
 % N sources
-% R_idx is an MxN matrix holding the indices of positive signals
+% R_idx is an nx2 matrix holding the indices of positive signals
 % names holds the string representation of sources
 [R_idx, M, N, names] = gdelt(path, subset, reload);
 
@@ -24,14 +31,15 @@ path     = 'data/hashed.csv'; % Path to dataset
 
 tetr_split = 1;
 
-datalen  = size(R_idx,1);
+Rall = sparse(R_idx(:,1), R_idx(:,2), 1);
 
 if tetr_split == 1 % Leave one out test-train split
     
-    idx_te = zeros(datalen, 1); % Test indices
-    
-    for i=1:datalen
-       idxs = find(R_idx(:,1) == R_idx(i));
+    idx_te = zeros(N,1); % Test indices
+
+    % per source
+    for i=1:N
+       idxs = find(R_idx(:,1)==i);
        rand_idx = randi(length(idxs), 1);
        idx_te(i) = idxs(rand_idx);
     end
@@ -47,19 +55,17 @@ if tetr_split == 1 % Leave one out test-train split
     R_idx_tr = R_idx(train_mask, :);
     R_idx_te = R_idx(test_mask , :);
 
-    Rall = sparse(R_idx(:,2),    R_idx(:,1),    ones(length(R_idx),1),    N, M);
-    Rtr  = sparse(R_idx_tr(:,2), R_idx_tr(:,1), ones(length(R_idx_tr),1), N, M);
-    Rte  = sparse(R_idx_te(:,2), R_idx_te(:,1), ones(length(R_idx_te),1), N, M);
+    Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1, N, M);
+    Rte  = sparse(R_idx_te(:,1), R_idx_te(:,2), 1, N, M);
     
 elseif tetr_split == 2     % Random test-train split
-    
+    datalen  = length(R_idx);
     rp       = randperm(datalen);
     pivot    = ceil(datalen/10);
     R_idx_te = R_idx(rp(1:pivot),:);
     R_idx_tr = R_idx(rp(pivot+1:end),:);
 
     % Create the User-Item interaction matrix
-    Rall = sparse(R_idx(:,2), R_idx(:,1), 1);
     Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1);
 end
 
@@ -77,8 +83,8 @@ for step=1:iter
     
     % Select a random positive example
     i  = randi([1 length(R_idx_tr)]);
-    iu = R_idx_tr(i,2);
-    ii = R_idx_tr(i,1);
+    iu = R_idx_tr(i,1);
+    ii = R_idx_tr(i,2);
     
     % Sample a negative example
     ji = sample_neg(Rtr,iu);
@@ -105,9 +111,9 @@ for step=1:iter
         auc = 0;
         for i=1:length(R_idx_te)
             te_i  = randi([1 length(R_idx_te)]);
-            te_iu = R_idx_te(i,2);
-            te_ii = R_idx_te(i,1);
-            te_ji = sample_neg(Rall,te_iu);
+            te_iu = R_idx_te(i,1);
+            te_ii = R_idx_te(i,2);
+            te_ji = sample_neg(Rall, te_iu);
             
             sp = P(te_iu,:)*Q(:,te_ii);
             sn = P(te_iu,:)*Q(:,te_ji);
@@ -191,7 +197,7 @@ end
 
 % Plot
 figure;
-scatter(ydata(:,1), ydata(:,2), [], dist_reuters);
+scatter(ydata(:,1), ydata(:,2), [], dist_ap);
 hold on;
 
 % Scatter
@@ -201,3 +207,49 @@ scatter(ydata(ap_idx,1),      ydata(ap_idx,2),      300, 'r', 'filled');
 text(ydata(reuters_idx,1) + dx, ydata(reuters_idx,2) + dy, 'reuters');
 text(ydata(ap_idx,1)      + dx, ydata(ap_idx,2)      + dy, 'ap');
 
+%% DBSCAN
+
+addpath('DBSCAN/')
+
+epsilon=2;
+MinPts=5;
+X = ydata;
+db=DBSCAN(X, epsilon, MinPts);
+PlotClusterinResult(X, db);
+
+
+%% Find recommendation ranking for holdout test event
+
+for i=1:length(top_20_ids)
+    search = top_20_ids(i);
+    if search < N
+        names(search)
+        % dot product : P(i) . Q
+        C = sum(bsxfun(@times, P(search,:), Q'), 2);
+        % Bring down training indices
+        tr_idx = find(Rtr(search,:));
+        C(tr_idx) = -1000;
+        % Sort recommendations
+        [~,I_d] = sort(C, 1, 'descend');
+        % Get the hold out event ID
+        holdout_event = find(Rte(search,:));
+        holdout_event_id = holdout_event(1);
+        % Find its ranking
+        ranking = find(I_d==holdout_event_id)
+    end
+end
+
+%%
+        search = 186;
+        % dot product : P(i) . Q
+        C = sum(bsxfun(@times, P(search,:), Q'), 2);
+        % Bring down training indices
+        tr_idx = find(Rtr(search,:));
+        C(tr_idx) = -1000;
+        % Sort recommendations
+        [~,I_d] = sort(C, 1, 'descend');
+        % Get the hold out event ID
+        holdout_event = find(Rte(search,:));
+        holdout_event_id = holdout_event(1);
+        % Find its ranking
+        ranking = find(I_d==holdout_event_id)
