@@ -9,18 +9,17 @@ lambda   =  0.01; % regularizer
 sigma    =   0.1; % std for random initialization
 mu       =   0.0; % mean for random initialization
 K        =    20; % number of latent factors
+reload   =     0; % Reload data
+subset   =   1e6; % Don't load entire dataset
+path     = 'data/source_map.csv'; % Path to dataset
 
-% Create synthetic dataset
-% simulate a one-class collaborative filtering setup
-% => positive signals only
-reload = 0;
-subset_size = 1e6;
-path = 'data/source_map.csv';
-
-[R_idx, M, N] = gdelt(path, subset_size, reload);
+% M events
+% N sources
+% R_idx is an MxN matrix holding the indices of positive signals
+[R_idx, M, N] = gdelt(path, subset, reload);
 
 
-%%
+%% Create testing and training sets
 
 % Split test-train
 datalen  = size(R_idx,1);
@@ -37,7 +36,8 @@ if length(R_idx) ~= length(nonzeros(Rall))
     disp('Problem in Rall.')
 end
 
-%%
+%% Run BPR
+
 % Initialize low-rank matrices with random values
 P = sigma.*randn(N,K) + mu; % Events
 Q = sigma.*randn(K,M) + mu; % Sources
@@ -90,13 +90,17 @@ for step=1:iter
 end
 
 %% t-SNE plot for users' latent factors
+
 addpath('tSNE_matlab/');
-plot_top_20 = 1;
-plot_names = 1;
+plot_top_20 = 1;      % Show locations of top 20 news_sources
+plot_names  = 1;      % Plot names on scatter
+plot_subset = 1:1000; % Only plot top 1K sources
 
+% Get index of top 1K sources
+[~,I]  = sort(sum_source, 1,'descend');
+subidx = I(plot_subset);
 
-[~,I] = sort(sum_source, 1,'descend');
-subidx = I(1:1000);
+% Run t-SNE on subset
 ydata = tsne(P(subidx,:));
 
 if plot_top_20 == 1
@@ -110,11 +114,13 @@ else
     plot_idx = subidx;
 end
 
+% Scatter plot t-SNE results
 figure;
 scatter(ydata(~plot_idx,1),ydata(~plot_idx,2));
 hold on;
 scatter(ydata(plot_idx,1),ydata(plot_idx,2), 300, 'r', 'filled');
 
+% Overlay names
 if plot_names == 1
     dx = 0.1; dy = 0.1; % displacement so the text does not overlay the data points
     c = names(subidx);
@@ -126,13 +132,13 @@ hold off
 %% Plot Distance to Reuters + AP 
 
 % Reuters
-reuters_id = find(strcmp('reuters.com', names));
-reuters = Rall(reuters_id,:);
+reuters_id  = find(strcmp('reuters.com', names));
+reuters     = Rall(reuters_id,:);
 reuters_idx = find(subidx == reuters_id);
 
 % Associated Press
-ap_id = find(strcmp('ap.org', names));
-ap = Rall(ap_id,:);
+ap_id  = find(strcmp('ap.org', names));
+ap     = Rall(ap_id,:);
 ap_idx = find(subidx == ap_id);
 
 % Compute distance
@@ -153,7 +159,7 @@ if recompute_dist == 1
 
 end
 
-
+% Plot
 figure;
 scatter(ydata(:,1),ydata(:,2),[],dist_ap);
 hold on;
