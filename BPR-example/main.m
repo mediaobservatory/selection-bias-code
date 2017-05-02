@@ -9,14 +9,15 @@ lambda   =  0.01; % regularizer
 sigma    =   0.1; % std for random initialization
 mu       =   0.0; % mean for random initialization
 K        =    20; % number of latent factors
-reload   =     0; % Reload data
+reload   =     1; % Reload data
 subset   =   1e6; % Don't load entire dataset
-path     = 'data/source_map.csv'; % Path to dataset
+path     = 'data/hashed.csv'; % Path to dataset
 
 % M events
 % N sources
 % R_idx is an MxN matrix holding the indices of positive signals
-[R_idx, M, N] = gdelt(path, subset, reload);
+% names holds the string representation of sources
+[R_idx, M, N, names] = gdelt(path, subset, reload);
 
 
 %% Create testing and training sets
@@ -97,7 +98,7 @@ plot_names  = 1;      % Plot names on scatter
 plot_subset = 1:1000; % Only plot top 1K sources
 
 % Get index of top 1K sources
-[~,I]  = sort(sum_source, 1,'descend');
+[~,I]  = sort(sum(Rall,2), 1, 'descend');
 subidx = I(plot_subset);
 
 % Run t-SNE on subset
@@ -147,27 +148,27 @@ dist = @(id, source) nnz(source & Rall(id,:)) / sum(source);
 recompute_dist = 1;
 
 if recompute_dist == 1
-    dist_reuters = zeros(length(subidx));
-    dist_ap = zeros(length(subidx));
+    dist_reuters = zeros(1, length(subidx));
+    dist_ap      = zeros(1, length(subidx));
 
     for i=1:length(subidx)
         i
-        source = Rall(subidx(i),:);
+        source          = Rall(subidx(i),:);
         dist_reuters(i) = dist(reuters_id, source);
-        dist_ap(i) = dist(ap_id, source);
+        dist_ap(i)      = dist(ap_id, source);
     end
 
 end
 
 % Plot
 figure;
-scatter(ydata(:,1),ydata(:,2),[],dist_ap);
+scatter(ydata(:,1), ydata(:,2), [], dist_ap);
 hold on;
 
 % Scatter
 scatter(ydata(reuters_idx,1), ydata(reuters_idx,2), 300, 'r', 'filled');
 scatter(ydata(ap_idx,1),      ydata(ap_idx,2),      300, 'r', 'filled');
 % Overlay names
-text(ydata(reuters_idx,1)+dx, ydata(reuters_idx,2)+dy, 'reuters');
-text(ydata(ap_idx,1)+dx,      ydata(ap_idx,2)+dy,      'ap');
+text(ydata(reuters_idx,1) + dx, ydata(reuters_idx,2) + dy, 'reuters');
+text(ydata(ap_idx,1)      + dx, ydata(ap_idx,2)      + dy, 'ap');
 
