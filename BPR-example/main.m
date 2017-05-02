@@ -161,7 +161,7 @@ hold on;
 % Scatter
 scatter(ydata(reuters_idx,1), ydata(reuters_idx,2), 300, 'r', 'filled');
 scatter(ydata(ap_idx,1),      ydata(ap_idx,2),      300, 'r', 'filled');
-Overlay namesg
+% Overlay names
 text(ydata(reuters_idx,1)+dx, ydata(reuters_idx,2)+dy, 'reuters');
 text(ydata(ap_idx,1)+dx,      ydata(ap_idx,2)+dy,      'ap');
 
