@@ -11,7 +11,8 @@ n_files = 3000 # indication : ~3k files / month with update every 15 mins
 #save_fname = "test_" + str(n_files) + "_files_" + time.strftime('%Y_%m_%d_%H_%M_%S') + ".csv"
 save_fname = "sources_" + time.strftime('%Y_%m_%d_%H_%M_%S') + ".csv"
 gid_key = 'GLOBALEVENTID'
-news_path = '../dl/'
+names = [gid_key, 'EventTimeDate', 'MentionTimeDate' ,'SourceName']
+news_path = 'dl/'
 
 def read_news(filename):
     try:
@@ -24,10 +25,10 @@ def read_news(filename):
 
 def read_source_event(filename):
     try:
-        df = pd.read_csv(news_path + filename, header=None, usecols=[0,4], names=[gid_key, 'source_name'], sep='\t')
+        df = pd.read_csv(news_path + filename, header=None, usecols=[0,1,2,4], names=names, sep='\t')
     except:
         print("[WARNING] File {} not found. Moving on ...".format(filename))
-        df = pd.DataFrame(columns=[gid_key, 'source_name'])
+        df = pd.DataFrame(columns=names)
     return df
 
 def count_events(df):
@@ -44,7 +45,7 @@ def timestamp_factory(idx, base=start_stamp):
     return stmp.strftime('%Y%m%d%H%M%S') + file_base_str
 
 def save_ts(ts):
-    fname = 'times_' + save_fname 
+    fname = 'times_' + save_fname
     with open(fname,'w') as out:
         csv_out=csv.writer(out)
         csv_out.writerow(['file_count','time'])
@@ -80,7 +81,7 @@ def count_sources():
     print("-- Total entries : {} from {} files.".format(len(base_df), n_files))
 
 def process_sources():
-    event_df = pd.read_csv('test_3000_files_2017_03_28_09_00_55.csv')
+    event_df = pd.read_csv('sources_2017_05_09_14_50_56.csv')
     event_list = event_df[event_df['counter'] > 5][gid_key]
     base_df = pd.DataFrame()
 
@@ -90,9 +91,5 @@ def process_sources():
         base_df = pd.concat([base_df, curr_df[curr_df[gid_key].isin(event_list)]])
     save_event_sources_distribution(base_df)
 
+#count_sources()
 process_sources()
-        
-
-
-
-

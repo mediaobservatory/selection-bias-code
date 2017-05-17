@@ -1,4 +1,4 @@
-function [ R_idx, M, N, names ] = gdelt(path,subset_size, reload)
+function [ R_idx, M, N, names, ids ] = gdelt(path,subset_size, reload)
     if reload == 1
         % Get data
         data = csvread(path,1,0);
@@ -7,6 +7,9 @@ function [ R_idx, M, N, names ] = gdelt(path,subset_size, reload)
         fd = fopen('data/source_map.csv');
         line  = fgets(fd);
         names = strsplit(line, ',');
+        fd = fopen('data/event_map.csv');
+        line = fgets(fd);
+        line = strsplit(line,',');
         ids  = str2double(line);
     end
 
