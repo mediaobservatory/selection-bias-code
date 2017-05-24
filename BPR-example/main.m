@@ -8,11 +8,11 @@
 
 
 iter     =   2e7; % number of iterations
-alpha    =  0.05; % learning rate
+alpha    =  0.05; % learning rate % TODO CV
 lambda   =  0.01; % regularizer
 sigma    =   0.1; % std for random initialization
 mu       =   0.0; % mean for random initialization
-K        =    20; % number of latent factors
+K        =    20; % number of latent factors % TODO CV
 reload   =     1; % Reload data
 subset   =   1e6; % Don't load entire dataset
 tetr_ratio = 0.2; % Test Train ratio
@@ -62,12 +62,14 @@ elseif tetr_split == 2     % Random test-train split
     R_idx_te = R_idx(rp(1:pivot),:);
     R_idx_tr = R_idx(rp(pivot+1:end),:);
 
-    % Create the User-Item interaction matrix
+    % Create the Source-Event interaction matrix
     Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1);
     
 elseif tetr_split == 3   % Train = 1w ; Test = 1d
     [R_idx_te, M_te, N_te, ids_test , names_test ] = gdelt_weekly_te('data/hashed', reload, subset * tetr_ratio);
     [R_idx_tr, M_tr, N_tr, ids_train, names_train] = gdelt_weekly_tr('data/hashed', reload, subset * (1-tetr_ratio));
+    
+    names = names_train;
     
     M = max(M_te,M_tr);
     N = max(N_te,N_tr);
@@ -76,26 +78,32 @@ elseif tetr_split == 3   % Train = 1w ; Test = 1d
     Rall = sparse(R_idx(:,1), R_idx(:,2), 1);
     idx_te = []; % Test indices
     
-    % per source
+    % Leave one out per source
     for i=1:N_te
-       idxs = find(R_idx_te(:,1)==i);
+       idxs = find(R_idx_te(:,1)==i);      % Find indexes corresponding to source
        if isempty(idxs)
-        rand_idx = randi(length(idxs), 1);
-        idx_te = [idx_te; idxs(rand_idx)];
+        rand_idx = randi(length(idxs), 1); % Randomly chose one
+        idx_te = [idx_te; idxs(rand_idx)]; % Add it to the test indices
        end
     end
 
+    % Keep only the heldout test samples
+    % Create a mask
     not_idx_te = zeros(length(R_idx_te),1);
-    not_idx_te(idx_te) = true;
+    not_idx_te(idx_te) = true; 
     not_idx_te = ~not_idx_te;
     
-    R_idx_tr = [R_idx_tr;R_idx_te(not_idx_te,:)];
-    R_idx_te(not_idx_te,:) = [];
+    R_idx_tr = [R_idx_tr;R_idx_te(not_idx_te,:)]; % Add the non-heldout events to the training set
+    R_idx_te(not_idx_te,:) = [];                  % Remove them from the test set, leaving only the
+                                                  % heldout samples
         
+    % Create the Source-Event interaction matrix
     Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1, N, M);
     Rte  = sparse(R_idx_te(:,1), R_idx_te(:,2), 1, N, M);
 end
 
+% Sanity checks (nnz elements of Rall should be equal to the number of
+% indices provided 
 if length(R_idx) ~= nnz(Rall) && tetr_split ~= 3
     disp('Problem in Rall.')
 elseif length(union(R_idx_te, R_idx_tr, 'rows')) ~= nnz(Rall) && tetr_split == 3
@@ -160,7 +168,7 @@ for step=1:iter
     
 end
 
-%% t-SNE plot for users' latent factors
+%% t-SNE for users' latent factors - Computation
 
 addpath('tSNE_matlab/');
 plot_top_20 = 1;      % Show locations of top 20 news_sources
@@ -174,7 +182,9 @@ subidx = I(plot_subset);
 % Run t-SNE on subset
 ydata = tsne(P(subidx,:));
 
-%%
+%% t-SNE for users' latent factors - Plot
+
+% Get ids for known sources to show them in plot
 if plot_top_20 == 1
     top_20_str = {'cnn.com', 'bbc.com', 'nytimes.com', 'foxnews.com', ...
                   'washingtonpost.com', 'washingtonpost.com', 'usatoday.com', ...
@@ -182,14 +192,14 @@ if plot_top_20 == 1
                   'telegraph.co.uk', 'wsj.com', 'indiatimes.com', 'independent.co.uk', ...
                   'elpais.com', 'lemonde.fr', 'ft.com', 'bostonglobe.com', ...
                   'ap.org', 'afp.com', 'reuters.com', 'yahoo.com', };
+              
     top_20_ids = zeros(length(top_20_str),1);
 
     for ii=1:length(top_20_str)
-        iid = find(strcmp(top_20_str{ii}, names_train));
-        top_20_ids(ii) = iid;
+        top_20_ids(ii) = find(strcmp(top_20_str{ii}, names_train));
     end
-                    
-    plot_idx = ismember(subidx,top_20_ids);
+             
+    plot_idx = ismember(subidx,top_20_ids); % Keep the ones that are part of the plot
 else
     plot_idx = subidx;
 end
@@ -203,12 +213,7 @@ scatter(ydata(plot_idx,1),ydata(plot_idx,2), 300, 'r', 'filled');
 % Overlay names
 if plot_names == 1
     dx = 0.1; dy = 0.1; % displacement so the text does not overlay the data points
-    if tetr_split == 1
-        c = names(subidx);
-    elseif tetr_split == 3
-        c = names_train(subidx);
-    end
-    text(ydata(:,1)+dx, ydata(:,2)+dy, c);
+    text(ydata(:,1)+dx, ydata(:,2)+dy, names(subidx));
 end
 hold off
 
@@ -265,14 +270,17 @@ scatter(ydata(ap_idx,1),      ydata(ap_idx,2),      300, 'r', 'filled');
 text(ydata(reuters_idx,1) + dx, ydata(reuters_idx,2) + dy, 'reuters');
 text(ydata(ap_idx,1)      + dx, ydata(ap_idx,2)      + dy, 'ap');
 
-%% DBSCAN
+%% DBSCAN - Copyright (c) 2015, Yarpiz
 
 addpath('DBSCAN/')
 
-epsilon=2;
-MinPts=5;
-X = ydata;
-db=DBSCAN(X, epsilon, MinPts);
+% Configure
+epsilon = 2;
+MinPts  = 5;
+X       = ydata;
+% Compute
+db      = DBSCAN(X, epsilon, MinPts);
+% Plot
 PlotClusterinResult(X, db);
 
 
@@ -299,7 +307,8 @@ for i=1:length(top_20_ids)
     end
 end
 
-%% Recommendations for auto top_20
+%% Find recommendation ranking for holdout test event
+% top_20 from the dataset
 
 auto_top_20_ids = subidx(1:20);
 
@@ -329,22 +338,24 @@ for i=1:length(auto_top_20_ids)
 end
 
 %% Ranking Jay
+% Alternative implementation of the recommendation ranking system
 
-auto_top_20_ids = subidx(end-1000:end);
-unique_te = unique(R_idx_te(:,2));
+% Choose a subset to rank
+auto_top_20_ids = subidx(end-1000:end); % Least "popular" sources
+unique_te = unique(R_idx_te(:,2));      % Keep only unique events
 
 res = [];
 for i=1:length(R_idx_te)
-   te_ev = R_idx_te(i,:);
+   te_ev = R_idx_te(i,:); % Get the (source;event) pair
    
    sp    = P(te_ev(1),:)*Q(:,te_ev(2));
    if any(te_ev(1)==auto_top_20_ids)
        cnt = 1;
        for j=1:length(unique_te)
-         if i==j;continue;end
+         if i==j; continue; end;
          sn = P(te_ev(1),:)*Q(:,R_idx_te(j,2));
 
-         if sn>sp;cnt=cnt+1;end;
+         if sn>sp;cnt=cnt+1; end;
        end
        res = [res;cnt];
    end
@@ -372,5 +383,3 @@ end
 
 auc = auc / length(R_idx_te);
 fprintf(['AUC test: ',num2str(auc),'\n']);
-
-
