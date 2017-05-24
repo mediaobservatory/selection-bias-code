@@ -79,31 +79,26 @@ elseif tetr_split == 3   % Train = 1w ; Test = 1d
     % per source
     for i=1:N_te
        idxs = find(R_idx_te(:,1)==i);
-       if length(idxs) > 0
+       if isempty(idxs)
         rand_idx = randi(length(idxs), 1);
         idx_te = [idx_te; idxs(rand_idx)];
        end
     end
-    
-    %%%%
-    
+
     not_idx_te = zeros(length(R_idx_te),1);
-    not_idx_te(idx_te) = logical(1);
+    not_idx_te(idx_te) = true;
     not_idx_te = ~not_idx_te;
     
     R_idx_tr = [R_idx_tr;R_idx_te(not_idx_te,:)];
     R_idx_te(not_idx_te,:) = [];
-    %%%%
-    
-    
+        
     Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1, N, M);
     Rte  = sparse(R_idx_te(:,1), R_idx_te(:,2), 1, N, M);
 end
 
-if length(R_idx) ~= nnz(Rall) & tetr_split ~= 3
+if length(R_idx) ~= nnz(Rall) && tetr_split ~= 3
     disp('Problem in Rall.')
-elseif length(union(R_idx_te, R_idx_tr, 'rows')) ...
-        ~= nnz(Rall) & tetr_split == 3
+elseif length(union(R_idx_te, R_idx_tr, 'rows')) ~= nnz(Rall) && tetr_split == 3
     disp('Problen in Rall (tetr==3)')
     disp(length(R_idx_tr)+length(R_idx_te) - nnz(Rall))
 end
@@ -187,11 +182,11 @@ if plot_top_20 == 1
                   'telegraph.co.uk', 'wsj.com', 'indiatimes.com', 'independent.co.uk', ...
                   'elpais.com', 'lemonde.fr', 'ft.com', 'bostonglobe.com', ...
                   'ap.org', 'afp.com', 'reuters.com', 'yahoo.com', };
-    top_20_ids = [];
+    top_20_ids = zeros(length(top_20_str),1);
 
     for ii=1:length(top_20_str)
         iid = find(strcmp(top_20_str{ii}, names_train));
-        top_20_ids = [top_20_ids; iid];
+        top_20_ids(ii) = iid;
     end
                     
     plot_idx = ismember(subidx,top_20_ids);
@@ -344,15 +339,14 @@ for i=1:length(R_idx_te)
    
    sp    = P(te_ev(1),:)*Q(:,te_ev(2));
    if any(te_ev(1)==auto_top_20_ids)
-   cnt = 1;
-   for j=1:length(unique_te)
-     if i==j;continue;end
-     sn = P(te_ev(1),:)*Q(:,R_idx_te(j,2));
-   
-     if sn>sp;cnt=cnt+1;end;
-   end
-   res = [res;cnt];
-   %disp(['rank: ',num2str(cnt)]);
+       cnt = 1;
+       for j=1:length(unique_te)
+         if i==j;continue;end
+         sn = P(te_ev(1),:)*Q(:,R_idx_te(j,2));
+
+         if sn>sp;cnt=cnt+1;end;
+       end
+       res = [res;cnt];
    end
 end
 
