@@ -5,7 +5,6 @@
 
 % TODO 
 % * Cross validation
-% * Extract for a full week, check predictions for the next day
 
 
 iter     =   2e7; % number of iterations
@@ -15,7 +14,8 @@ sigma    =   0.1; % std for random initialization
 mu       =   0.0; % mean for random initialization
 K        =    20; % number of latent factors
 reload   =     1; % Reload data
-subset   =   1e5; % Don't load entire dataset
+subset   =   1e6; % Don't load entire dataset
+tetr_ratio = 0.2; % Test Train ratio
 path     = 'data/hashed.csv'; % Path to dataset
 
 % M events
@@ -66,50 +66,54 @@ elseif tetr_split == 2     % Random test-train split
     Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1);
     
 elseif tetr_split == 3   % Train = 1w ; Test = 1d
-    [R_idx_te, M_te, N_te, ids_test , names_test ] = gdelt_weekly_te('data/hashed', reload);
-    [R_idx_tr, M_tr, N_tr, ids_train, names_train] = gdelt_weekly_tr('data/hashed', reload);
+    [R_idx_te, M_te, N_te, ids_test , names_test ] = gdelt_weekly_te('data/hashed', reload, subset * tetr_ratio);
+    [R_idx_tr, M_tr, N_tr, ids_train, names_train] = gdelt_weekly_tr('data/hashed', reload, subset * (1-tetr_ratio));
     
-    R_idx = [R_idx_tr; R_idx_te];
+    M = max(M_te,M_tr);
+    N = max(N_te,N_tr);
+    
+    R_idx = union(R_idx_te, R_idx_tr, 'rows');
     Rall = sparse(R_idx(:,1), R_idx(:,2), 1);
-    idx_te = zeros(N_te,1); % Test indices
-
+    idx_te = []; % Test indices
+    
     % per source
     for i=1:N_te
        idxs = find(R_idx_te(:,1)==i);
-       rand_idx = randi(length(idxs), 1);
-       idx_te(i) = idxs(rand_idx);
+       if length(idxs) > 0
+        rand_idx = randi(length(idxs), 1);
+        idx_te = [idx_te; idxs(rand_idx)];
+       end
     end
     
-    % Create index mask
-    % Test
-    test_mask         = zeros(length(R_idx), 1);
-    test_mask(idx_te) = 1;
-    test_mask         = logical(test_mask);
-    % Train
-    train_mask = ~test_mask;
-
-    R_idx_tr = R_idx(train_mask, :);
-    R_idx_te = R_idx(test_mask , :);
-
-    Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1, N_tr, M_tr);
-    Rte  = sparse(R_idx_te(:,1), R_idx_te(:,2), 1, N_tr, M_tr);
+    %%%%
+    
+    not_idx_te = zeros(length(R_idx_te),1);
+    not_idx_te(idx_te) = logical(1);
+    not_idx_te = ~not_idx_te;
+    
+    R_idx_tr = [R_idx_tr;R_idx_te(not_idx_te,:)];
+    R_idx_te(not_idx_te,:) = [];
+    %%%%
+    
+    
+    Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1, N, M);
+    Rte  = sparse(R_idx_te(:,1), R_idx_te(:,2), 1, N, M);
 end
 
 if length(R_idx) ~= nnz(Rall) & tetr_split ~= 3
     disp('Problem in Rall.')
-elseif length(R_idx_tr)+length(R_idx_te) ~= nnz(Rall) & tetr_split == 3
+elseif length(union(R_idx_te, R_idx_tr, 'rows')) ...
+        ~= nnz(Rall) & tetr_split == 3
     disp('Problen in Rall (tetr==3)')
     disp(length(R_idx_tr)+length(R_idx_te) - nnz(Rall))
 end
 
 %% Run BPR
 
-% Initialize low-rank matrices with random values
-if tetr_split == 3
-    M = M_tr;
-    N = N_tr;
-end
+% Record auc values
+auc_vals = zeros(iter/100000,1);
 
+% Initialize low-rank matrices with random values
 P = sigma.*randn(N,K) + mu; % Sources
 Q = sigma.*randn(K,M) + mu; % Events
 
@@ -156,6 +160,7 @@ for step=1:iter
         end
         auc = auc / length(R_idx_te);
         fprintf(['AUC test: ',num2str(auc),'\n']);
+        auc_vals(step/100000) = auc;
     end
     
 end
@@ -174,11 +179,20 @@ subidx = I(plot_subset);
 % Run t-SNE on subset
 ydata = tsne(P(subidx,:));
 
+%%
 if plot_top_20 == 1
-                % cnn, bbc, nyt, fox, wapo, usat, gua, dma, chd, tlg, wsj, IT
-    top_20_ids = [186, 612, 367, 211, 328 , 1725, 611, 502, 160, 614, 865, 92, ...
-                  ... % indp, pais, lmnde, FT,   BG  , AP,  AFP, reu
-                        1388, 7537, 19048, 8030, 397, 161, 4236, 297];
+    top_20_str = {'cnn.com', 'bbc.com', 'nytimes.com', 'foxnews.com', ...
+                  'washingtonpost.com', 'washingtonpost.com', 'usatoday.com', ...
+                  'theguardian.com', 'dailymail.co.uk', 'chinadaily.com.cn', ...
+                  'telegraph.co.uk', 'wsj.com', 'indiatimes.com', 'independent.co.uk', ...
+                  'elpais.com', 'lemonde.fr', 'ft.com', 'bostonglobe.com', ...
+                  'ap.org', 'afp.com', 'reuters.com', 'yahoo.com', };
+    top_20_ids = [];
+
+    for ii=1:length(top_20_str)
+        iid = find(strcmp(top_20_str{ii}, names_train));
+        top_20_ids = [top_20_ids; iid];
+    end
                     
     plot_idx = ismember(subidx,top_20_ids);
 else
@@ -194,7 +208,11 @@ scatter(ydata(plot_idx,1),ydata(plot_idx,2), 300, 'r', 'filled');
 % Overlay names
 if plot_names == 1
     dx = 0.1; dy = 0.1; % displacement so the text does not overlay the data points
-    c = names(subidx);
+    if tetr_split == 1
+        c = names(subidx);
+    elseif tetr_split == 3
+        c = names_train(subidx);
+    end
     text(ydata(:,1)+dx, ydata(:,2)+dy, c);
 end
 hold off
@@ -241,6 +259,17 @@ scatter(ydata(ap_idx,1),      ydata(ap_idx,2),      300, 'r', 'filled');
 text(ydata(reuters_idx,1) + dx, ydata(reuters_idx,2) + dy, 'reuters');
 text(ydata(ap_idx,1)      + dx, ydata(ap_idx,2)      + dy, 'ap');
 
+figure;
+scatter(ydata(:,1), ydata(:,2), [], dist_reuters);
+hold on;
+
+% Scatter
+scatter(ydata(reuters_idx,1), ydata(reuters_idx,2), 300, 'r', 'filled');
+scatter(ydata(ap_idx,1),      ydata(ap_idx,2),      300, 'r', 'filled');
+% Overlay names
+text(ydata(reuters_idx,1) + dx, ydata(reuters_idx,2) + dy, 'reuters');
+text(ydata(ap_idx,1)      + dx, ydata(ap_idx,2)      + dy, 'ap');
+
 %% DBSCAN
 
 addpath('DBSCAN/')
@@ -253,6 +282,7 @@ PlotClusterinResult(X, db);
 
 
 %% Find recommendation ranking for holdout test event
+% Manually curated top_20
 
 for i=1:length(top_20_ids)
     search = top_20_ids(i);
@@ -274,8 +304,14 @@ for i=1:length(top_20_ids)
     end
 end
 
-%%
-        search = 3471;
+%% Recommendations for auto top_20
+
+auto_top_20_ids = subidx(1:20);
+
+for i=1:length(auto_top_20_ids)
+    search = auto_top_20_ids(i);
+    if search < N
+        names_test(search)
         % dot product : P(i) . Q
         C = sum(bsxfun(@times, P(search,:), Q'), 2);
         % Bring down training indices
@@ -285,6 +321,62 @@ end
         [~,I_d] = sort(C, 1, 'descend');
         % Get the hold out event ID
         holdout_event = find(Rte(search,:));
-        holdout_event_id = holdout_event(1);
-        % Find its ranking
-        ranking = find(I_d==holdout_event_id)
+        if numel(holdout_event) > 0
+            holdout_event_id = holdout_event(1);
+            global_id = ids_test(holdout_event_id)+1
+            % Find its ranking
+            ranking = find(I_d==holdout_event_id)
+        else 
+            'No holdout found'
+        end
+        
+    end
+end
+
+%% Ranking Jay
+
+auto_top_20_ids = subidx(end-1000:end);
+unique_te = unique(R_idx_te(:,2));
+
+res = [];
+for i=1:length(R_idx_te)
+   te_ev = R_idx_te(i,:);
+   
+   sp    = P(te_ev(1),:)*Q(:,te_ev(2));
+   if any(te_ev(1)==auto_top_20_ids)
+   cnt = 1;
+   for j=1:length(unique_te)
+     if i==j;continue;end
+     sn = P(te_ev(1),:)*Q(:,R_idx_te(j,2));
+   
+     if sn>sp;cnt=cnt+1;end;
+   end
+   res = [res;cnt];
+   %disp(['rank: ',num2str(cnt)]);
+   end
+end
+
+%% Sanity Jay
+
+unique_te = unique(R_idx_te(:,2));
+
+auc = 0;
+for i=1:length(R_idx_te)
+   te_ev = R_idx_te(i,:);
+   sp = P(te_ev(1),:)*Q(:,te_ev(2));
+   
+   te_i = te_ev(2);
+   while te_i == te_ev(2)
+     rand_i  = randi([1 length(R_idx_te)]);
+     te_i = R_idx_te(rand_i,2);
+   end
+   
+   sn = P(te_ev(1),:)*Q(:,te_i);
+   if sp>sn; auc=auc+1; elseif sp==sn; auc=auc+0.5; end
+
+end
+
+auc = auc / length(R_idx_te);
+fprintf(['AUC test: ',num2str(auc),'\n']);
+
+
