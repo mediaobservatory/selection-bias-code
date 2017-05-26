@@ -337,7 +337,7 @@ for i=1:length(auto_top_20_ids)
     end
 end
 
-%% Ranking Jay
+%% Ranking - Jay
 % Alternative implementation of the recommendation ranking system
 
 % Choose a subset to rank
@@ -346,40 +346,45 @@ unique_te = unique(R_idx_te(:,2));      % Keep only unique events
 
 res = [];
 for i=1:length(R_idx_te)
-   te_ev = R_idx_te(i,:); % Get the (source;event) pair
+   te_ev = R_idx_te(i,:);               % Get the (source;event) pair
+   sp    = P(te_ev(1),:)*Q(:,te_ev(2)); % Compute the score from P;Q matrices for this pair
    
-   sp    = P(te_ev(1),:)*Q(:,te_ev(2));
-   if any(te_ev(1)==auto_top_20_ids)
+   if any(te_ev(1)==auto_top_20_ids)    % Limit to the selected subset
        cnt = 1;
        for j=1:length(unique_te)
          if i==j; continue; end;
-         sn = P(te_ev(1),:)*Q(:,R_idx_te(j,2));
+         sn = P(te_ev(1),:)*Q(:,R_idx_te(j,2)); % Get the scores for this sources relative to
+                                                % all the events
 
-         if sn>sp;cnt=cnt+1; end;
+         if sn>sp;cnt=cnt+1; end;               % Increment ranking if there is a better score
+                                                % for another event than
+                                                % the one we had selected
        end
        res = [res;cnt];
    end
 end
 
-%% Sanity Jay
+%% Sanity check - Jay
+% Check AUC score consistency
 
-unique_te = unique(R_idx_te(:,2));
+unique_te = unique(R_idx_te(:,2)); % Get the unique events in test set
 
 auc = 0;
 for i=1:length(R_idx_te)
-   te_ev = R_idx_te(i,:);
-   sp = P(te_ev(1),:)*Q(:,te_ev(2));
+   te_ev = R_idx_te(i,:);            % Get (source;event) pair
+   sp = P(te_ev(1),:)*Q(:,te_ev(2)); % Compute the score for this pair
    
-   te_i = te_ev(2);
+   te_i = te_ev(2); % Get event id
+   
    while te_i == te_ev(2)
      rand_i  = randi([1 length(R_idx_te)]);
-     te_i = R_idx_te(rand_i,2);
+     te_i = R_idx_te(rand_i, 2);            % Get another random event
    end
    
-   sn = P(te_ev(1),:)*Q(:,te_i);
+   sn = P(te_ev(1),:)*Q(:,te_i);            % Compute the score for this new random event
    if sp>sn; auc=auc+1; elseif sp==sn; auc=auc+0.5; end
 
 end
 
-auc = auc / length(R_idx_te);
+auc = auc / length(R_idx_te);   % Print AUC score
 fprintf(['AUC test: ',num2str(auc),'\n']);
