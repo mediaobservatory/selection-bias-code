@@ -78,7 +78,9 @@ __*Figure 9* : Log-Distance of each news source to the Reuters wire__
 
 The final step is to see how good our model is at predicting a source's coverage of an event. We will rank the predictions made by our model for the holdout event (the one we used as a test) and see where it ranks in the list of predicted events. 
 
-![Figure 10](https://github.com/JRappaz/NewsXtract/blob/gdelt/BPR-example/img/hist_ranking.png)
-__*Figure 10* : Distribution of the ranking counts for the holdout events__
+![Figure 10](https://github.com/JRappaz/NewsXtract/blob/gdelt/BPR-example/img/hist_ranking_log.png)
+__*Figure 10* : Log-Distribution of the ranking counts for the holdout events__
 
-As we can see the model is in general quite good at predicting if an event was covered or not by a source (this is shown by the fact that most of the events predicted ranked quite high).
+As we can see the model is in general quite good at predicting if an event was covered or not by a source (this is shown by the fact that most of the events predicted ranked quite high). 
+
+The mean ranking on this dataset is `mean = 176.7455` (`median = 81.5000`, `std = 267.3238`), which means the average ranking is in the `top 2.8%` (there were `5961` heldout events). Considering the high variance, let's see these values without a couple hundred outliers : `mean = 79.6040` (`median = 60.0000`, `std = 67.9904`). This gives us a mean ranking close to the `top 1%` (of course this last result is thanks to manual pruning of outliers : though we made no assumptions on the cleanliness of the dataset, the result that holds is the one before. This is left for reference).
