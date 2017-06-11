@@ -432,10 +432,17 @@ end
 
 ranks = res;
 figure;
-hist(res, 500);
+h = hist(res, 500);
+scatter(1:1:500, h, 100, ...
+              'MarkerEdgeColor',[0 .5 .5],...
+              'MarkerFaceColor',[0 .7 .7],...
+              'LineWidth',1.5)
+set(gca,'xscale','log')
+set(gca,'yscale','log')
 ylabel('Count')
 xlabel('Ranking')
 title('Event ranking distribution')
+grid on
 %set(gca, 'XTickLabel', num2str([1:1:50, 100:100:500, 1000:1000:2000]))
 
 %% Sanity check - Jay
