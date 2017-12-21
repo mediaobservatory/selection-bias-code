@@ -1,18 +1,18 @@
-function [ R_idx_tr, M_tr, N_tr, ids_train, names_train ] = gdelt_weekly_tr(base_path, reload, subset_size)
+function [ R_idx_tr, M_tr, N_tr, ids_train, names_train ] = gdelt_weekly_tr(base_path, week, reload, subset_size)
     if reload == 1
         
         % Get data
-        train_path = strcat(base_path, '_1_week_new.csv');
+        train_path = strcat(base_path, '_', week, '_train.csv');
         train_data = csvread(train_path,1,0);
          
         % Get names
         % Test
-        fd   = fopen('data/source_map_new.csv');
+        fd   = fopen(strcat('data/source_map_',week,'.csv'));
         line = fgets(fd);
         
         names_train = strsplit(line, ',');
         
-        fd       = fopen('data/event_map_new.csv');
+        fd       = fopen(strcat('data/event_map_',week,'.csv'));
         line     = fgets(fd);
         line     = strsplit(line,',');
         ids_train = str2double(line);

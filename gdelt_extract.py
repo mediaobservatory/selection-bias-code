@@ -5,14 +5,47 @@ from timeit import default_timer as timer
 import time
 import csv
 
-start_stamp = "20161015000000"
-file_base_str = ".mentions.CSV"
-n_files = 3000 # indication : ~3k files / month with update every 15 mins
+# W1 : 01.10.2016 -> 09.10.2016
+# W2 : 15.10.2016 -> 23.10.2016
+# W3 : 25.10.2016 -> 02.11.2016
+# W4 : 05.11.216  -> 13.11.2016
+# W5 : 15.11.2016 -> 23.11.2016
+
+week = 'W1'
+
+times = {
+    'W1' : {
+        'start': 20161001000000,
+        'end'  : 20161007000000
+    },
+    'W2' : {
+        'start': 20161015000000,
+        'end'  : 20161022000000
+    },
+    'W3' : {
+        'start': 20161025000000,
+        'end'  : 20161101000000
+    },
+    'W4' : {
+        'start': 20161105000000,
+        'end'  : 20161112000000
+    },
+    'W5' : {
+        'start': 20161115000000,
+        'end'  : 20161122000000
+    }
+}
+
+
+start_stamp = times[week]['start']
+file_base_str = ".export.CSV"
+n_files = 768 # indication : ~3k files / month with update every 15 mins // 96 / day
 #save_fname = "test_" + str(n_files) + "_files_" + time.strftime('%Y_%m_%d_%H_%M_%S') + ".csv"
-save_fname = "sources_" + time.strftime('%Y_%m_%d_%H_%M_%S') + ".csv"
+#save_fname = "sources_" + time.strftime('%Y_%m_%d_%H_%M_%S') + ".csv"
+save_fname = "sources_" + week + ".csv"
 gid_key = 'GLOBALEVENTID'
 names = [gid_key, 'EventTimeDate', 'MentionTimeDate' ,'SourceName']
-news_path = 'dl/'
+news_path = 'dl/events'
 
 def read_news(filename):
     try:
@@ -57,21 +90,21 @@ def save_ts(ts):
 
 start_file = start_stamp + file_base_str
 times = []
-#print("Getting file {} ...".format(start_file))
+print("Getting file {} ...".format(start_file))
 def count_sources():
     base_df = count_events(read_news(start_file))
-    #print("{} entries processed".format(len(base_df)))
+    print("{} entries processed".format(len(base_df)))
 
     for i in range(1,n_files):
         start = timer()
         filename = timestamp_factory(i)
         curr_df = read_news(filename)
-        #print("Getting file {} ...".format(filename))
+        print("Getting file {} ...".format(filename))
         base_df = count_events(base_df.merge(curr_df, how='outer', on=[gid_key, 'counter']))
-        #print("{} entries processed. {} total".format(len(curr_df), len(base_df)))
+        print("{} entries processed. {} total".format(len(curr_df), len(base_df)))
         end = timer()
         times.append((i,end-start))
-        #print("Done processing file #{}. time = {}".format(i, end-start))
+        print("Done processing file #{}. time = {}".format(i, end-start))
 
     save_event_sources_distribution(base_df)
     save_ts(times)
@@ -81,7 +114,7 @@ def count_sources():
     print("-- Total entries : {} from {} files.".format(len(base_df), n_files))
 
 def process_sources():
-    event_df = pd.read_csv('sources_2017_05_09_14_50_56.csv')
+    event_df = pd.read_csv('sources_W5.csv')
     event_list = event_df[event_df['counter'] > 5][gid_key]
     base_df = pd.DataFrame()
 
@@ -91,5 +124,5 @@ def process_sources():
         base_df = pd.concat([base_df, curr_df[curr_df[gid_key].isin(event_list)]])
     save_event_sources_distribution(base_df)
 
-#count_sources()
-process_sources()
+count_sources()
+#process_sources()

@@ -1,18 +1,18 @@
-function [ R_idx_te, M_te, N_te, ids_test, names_test ] = gdelt_weekly_te(base_path, reload, subset_size)
+function [ R_idx_te, M_te, N_te, ids_test, names_test ] = gdelt_weekly_te(base_path, week, reload, subset_size)
     if reload == 1
         
         % Get data
-        test_path = strcat(base_path, '_1_day_new.csv');
+        test_path = strcat(base_path, '_', week, '_test.csv');
         test_data = csvread(test_path,1,0);
          
         % Get names
         % Test
-        fd   = fopen('data/source_map_new.csv');
+        fd   = fopen(strcat('data/source_map_',week,'.csv'));
         line = fgets(fd);
         
         names_test = strsplit(line, ',');
         
-        fd       = fopen('data/event_map_new.csv');
+        fd       = fopen(strcat('data/event_map_',week,'.csv'));
         line     = fgets(fd);
         line     = strsplit(line,',');
         ids_test = str2double(line);

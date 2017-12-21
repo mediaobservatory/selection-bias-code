@@ -17,12 +17,13 @@ reload   =     1; % Reload data
 subset   =   1e6; % Don't load entire dataset
 tetr_ratio = 0.2; % Test Train ratio
 path     = 'data/hashed.csv'; % Path to dataset
+week     = 'W5';
 %%
 % M events
 % N sources
 % R_idx is an nx2 matrix holding the indices of positive signals
 % names holds the string representation of sources
-[R_idx, M, N, names, ids] = gdelt(path, subset, reload);
+%[R_idx, M, N, names, ids] = gdelt(path, subset, reload);
 
 %% Create testing and training sets
 
@@ -66,8 +67,8 @@ elseif tetr_split == 2     % Random test-train split
     Rtr  = sparse(R_idx_tr(:,1), R_idx_tr(:,2), 1);
     
 elseif tetr_split == 3   % Train = 1w ; Test = 1d
-    [R_idx_te, M_te, N_te, ids_test , names_test ] = gdelt_weekly_te('data/hashed', reload, subset * tetr_ratio);
-    [R_idx_tr, M_tr, N_tr, ids_train, names_train] = gdelt_weekly_tr('data/hashed', reload, subset * (1-tetr_ratio));
+    [R_idx_te, M_te, N_te, ids_test , names_test ] = gdelt_weekly_te('data/hashed', week, reload, subset * tetr_ratio);
+    [R_idx_tr, M_tr, N_tr, ids_train, names_train] = gdelt_weekly_tr('data/hashed', week, reload, subset * (1-tetr_ratio));
     
     names = names_train;
     
@@ -111,6 +112,7 @@ elseif length(union(R_idx_te, R_idx_tr, 'rows')) ~= nnz(Rall) && tetr_split == 3
     disp(length(R_idx_tr)+length(R_idx_te) - nnz(Rall))
 end
 
+
 %% Run BPR
 
 % Record auc values
@@ -119,7 +121,7 @@ auc_vals = zeros(iter/100000,1);
 % Initialize low-rank matrices with random values
 P = sigma.*randn(N,K) + mu; % Sources
 Q = sigma.*randn(K,M) + mu; % Events
-
+x?
 for step=1:iter
     
     % Select a random positive example
@@ -168,6 +170,7 @@ for step=1:iter
     
 end
 
+
 %% t-SNE for users' latent factors - Computation
 
 addpath('tSNE_matlab/');
@@ -179,6 +182,7 @@ plot_subset = 1:1000; % Only plot top 1K sources
 [~,I]  = sort(sum(Rall, 2), 1, 'descend');
 subidx = I(plot_subset);
 
+%%
 % Run t-SNE on subset
 ydata = tsne(P(subidx,:));
 
@@ -260,7 +264,7 @@ ap_idx = find(subidx == ap_id);
 % Compute distance
 dist = @(id, source) log(nnz(source & Rall(id,:)) / sum(source));
 
-recompute_dist = 0;
+recompute_dist = 1;
 
 if recompute_dist == 1
     dist_reuters = zeros(1, length(subidx));
@@ -403,6 +407,61 @@ for i=1:length(R_idx_te)
    end
 end
 
+%% Ranking - Popularity
+
+[~,I]  = sort(sum(Rall',2), 1, 'descend');
+subidx_events = I(1:1000);
+%%
+% Choose a subset to rank
+auto_top_20_ids = subidx(1:end); % Least "popular" sources
+unique_te = unique(R_idx_te(:,2));      % Keep only unique events
+
+res_pop = [];
+for i=1:length(R_idx_te)
+   te_ev = R_idx_te(i,:)  ;             % Get the (source;event) pair
+   sp    = find(I==te_ev(2));  % Score is ranking
+   if any(te_ev(1)==auto_top_20_ids)
+    res_pop = [res_pop;sp];
+   end
+end
+
+%% Popularity AUC
+
+% Record auc values
+auc_vals_pop = zeros(iter/100000,1);
+
+for step=1:iter
+    
+    % Select a random positive example
+    i  = randi([1 length(R_idx_tr)]);
+    iu = R_idx_tr(i,1);
+    ii = R_idx_tr(i,2);
+    
+    % Sample a negative example
+    ji = sample_neg(Rtr,iu);
+    
+    if mod(step,100000)==0
+        
+        % Compute the Area Under the Curve (AUC)
+        auc = 0;
+        for i=1:length(R_idx_te)
+            te_i  = randi([1 length(R_idx_te)]);
+            te_iu = R_idx_te(i,1);
+            te_ii = R_idx_te(i,2);
+            te_ji = sample_neg(Rall, te_iu);
+            
+            sp = sum(Rtr(:,te_ii));
+            sn = sum(Rtr(:,te_ji));
+            
+            if sp>sn; auc=auc+1; elseif sp==sn; auc=auc+0.5; end
+        end
+        auc = auc / length(R_idx_te);
+        fprintf(['AUC test: ',num2str(auc),'\n']);
+        auc_vals_pop(step/100000) = auc;
+    end
+    
+end
+
 %% Top 20 dustribution
 
 auto_top_20_ids = subidx(1:50); % Least "popular" sources
@@ -433,9 +492,15 @@ end
 ranks = res;
 figure;
 h = hist(res, 500);
-scatter(1:1:500, h, 100, ...
+scatter(1:1:length(h), h, 100, ...
               'MarkerEdgeColor',[0 .5 .5],...
               'MarkerFaceColor',[0 .7 .7],...
+              'LineWidth',1.5)
+hold on;
+h1 = hist(res_pop, 500);
+scatter(1:1:length(h1), h1, 100, ...
+              'MarkerEdgeColor',[.5 0 .5],...
+              'MarkerFaceColor',[.5 0 .7],...
               'LineWidth',1.5)
 set(gca,'xscale','log')
 set(gca,'yscale','log')
@@ -444,6 +509,40 @@ xlabel('Ranking')
 title('Event ranking distribution')
 grid on
 %set(gca, 'XTickLabel', num2str([1:1:50, 100:100:500, 1000:1000:2000]))
+
+%% Popularity plot
+
+% popularity = f(#event)
+
+a = sum(Rall',2);
+figure;
+h1 = hist(a,unique(a));
+scatter(1:1:length(h1), h1, 100, ...
+              'MarkerEdgeColor',[0 .5 .5],...
+              'MarkerFaceColor',[0 .5 .7],...
+              'LineWidth',1.5)
+set(gca,'xscale','log')
+set(gca,'yscale','log')
+ylabel('# Events')
+xlabel('Popularity')
+title('Event popularity distribution')
+grid on
+
+%%
+
+a = sum(Rall,2);
+figure;
+h1 = hist(a,unique(a));
+scatter(1:1:length(h1), h1, 100, ...
+              'MarkerEdgeColor',[.5 0 .5],...
+              'MarkerFaceColor',[.5 0 .7],...
+              'LineWidth',1.5)
+set(gca,'xscale','log')
+set(gca,'yscale','log')
+ylabel('# Sources')
+xlabel('Events covered')
+title('Source coverage distribution')
+grid on
 
 %% Sanity check - Jay
 % Check AUC score consistency
@@ -612,8 +711,106 @@ ys = auc_vals;
 plot(xs,ys, 'LineWidth', 2.5)
 hold on
 plot(xs, ones(1,length(xs)) .* max(auc_vals), '--', 'LineWidth', 2.5)
+plot(xs, auc_vals_pop)
 grid on
 ylabel('AUC')
 xlabel('Iteration')
 legend('AUC', 'max(AUC)')
 title('AUC (2e7 iterations, \alpha=0.1, \lambda=0.01, K=20)')
+
+%% KNN popularity
+
+% Record auc values
+auc_vals_knn = zeros(iter/100000,1);
+
+% Compute the Area Under the Curve (AUC)
+auc = 0;
+r = randi([1 length(R_idx_te)],1,50);
+
+for i=1:length(r)
+    i
+    te_i  = randi([1 length(R_idx_te)]);
+    te_iu = R_idx_te(r(i),1);
+    te_ii = R_idx_te(r(i),2);
+    te_ji = sample_neg(Rall, te_iu);
+    
+    knn_k = 10;
+    
+    [n,d]=knnsearch(Rtr([1:te_iu-1 te_iu+1:end],:),Rtr(te_iu,:),'k',knn_k,'distance','cosine');
+    
+    sp = sum(Rtr(n,te_ii));
+    sn = sum(Rtr(n,te_ji));
+    
+    
+    if sp>sn; auc=auc+1; elseif sp==sn; auc=auc+0.5; end
+end
+auc = auc / length(r);
+fprintf(['AUC test: ',num2str(auc),'\n']);
+auc_vals_knn(step/100000) = auc;
+
+%% Baseline run
+
+% Get index of top 1K sources
+[~,I]  = sort(sum(Rall, 2), 1, 'descend');
+subidx = I(plot_subset);
+   
+% Record auc values
+auc_vals_pop = zeros(iter/100000,1);
+
+for step=1:5
+    
+    % Select a random positive example
+    i  = randi([1 length(R_idx_tr)]);
+    iu = R_idx_tr(i,1);
+    ii = R_idx_tr(i,2);
+    
+    % Sample a negative example
+    ji = sample_neg(Rtr,iu);
+    
+    % Compute the Area Under the Curve (AUC)
+    auc = 0;
+    for i=1:length(R_idx_te)
+        te_i  = randi([1 length(R_idx_te)]);
+        te_iu = R_idx_te(i,1);
+        te_ii = R_idx_te(i,2);
+        te_ji = sample_neg(Rall, te_iu);
+        
+        sp = sum(Rtr(:,te_ii));
+        sn = sum(Rtr(:,te_ji));
+        
+        if sp>sn; auc=auc+1; elseif sp==sn; auc=auc+0.5; end
+    end
+    auc = auc / length(R_idx_te);
+    fprintf(['AUC test: ',num2str(auc),'\n']);
+    auc_vals_pop(step) = auc;
+    
+    
+end
+
+% Record auc values
+auc_vals_knn = zeros(iter/100000,1);
+
+% Compute the Area Under the Curve (AUC)
+auc = 0;
+r = randi([1 length(R_idx_te)],1,50);
+
+for i=1:length(r)
+    i
+    te_i  = randi([1 length(R_idx_te)]);
+    te_iu = R_idx_te(r(i),1);
+    te_ii = R_idx_te(r(i),2);
+    te_ji = sample_neg(Rall, te_iu);
+    
+    knn_k = 10;
+    
+    [n,d]=knnsearch(Rtr([1:te_iu-1 te_iu+1:end],:),Rtr(te_iu,:),'k',knn_k,'distance','cosine');
+    
+    sp = sum(Rtr(n,te_ii));
+    sn = sum(Rtr(n,te_ji));
+    
+    
+    if sp>sn; auc=auc+1; elseif sp==sn; auc=auc+0.5; end
+end
+auc = auc / length(r);
+fprintf(['AUC test: ',num2str(auc),'\n']);
+auc_vals_knn = auc;
