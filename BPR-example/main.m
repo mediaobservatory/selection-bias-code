@@ -6,7 +6,10 @@
 % TODO 
 % * Cross validation
 
+set(0, 'DefaultLineLineWidth', 3);
+set(groot,'DefaultAxesFontSize',30)
 
+%%
 iter     =   2e7; % number of iterations
 alpha    =   0.1; % learning rate % TODO CV
 lambda   =  0.01; % regularizer
@@ -17,7 +20,7 @@ reload   =     1; % Reload data
 subset   =   1e6; % Don't load entire dataset
 tetr_ratio = 0.2; % Test Train ratio
 path     = 'data/hashed.csv'; % Path to dataset
-week     = 'W5';
+week     = 'W4';
 %%
 % M events
 % N sources
@@ -121,7 +124,7 @@ auc_vals = zeros(iter/100000,1);
 % Initialize low-rank matrices with random values
 P = sigma.*randn(N,K) + mu; % Sources
 Q = sigma.*randn(K,M) + mu; % Events
-x?
+
 for step=1:iter
     
     % Select a random positive example
@@ -186,7 +189,8 @@ subidx = I(plot_subset);
 % Run t-SNE on subset
 ydata = tsne(P(subidx,:));
 
-%% t-SNE for users' latent factors - Plot
+%%
+%t-SNE for users' latent factors - Plot
 
 % Get ids for known sources to show them in plot
 if plot_top_20 == 1
@@ -197,7 +201,20 @@ if plot_top_20 == 1
                   'elpais.com', 'lemonde.fr', 'ft.com', 'bostonglobe.com', ...
                   'ap.org', 'afp.com', 'reuters.com', 'yahoo.com', };
               
+    top_right_str = {'cbn.com', 'breitbart.com', 'spectator.org', 'foxnews.com', 'nypost.com', 'nationalreview.com', 'newsmax.com'};
+    top_left_str = {'democracynow.org', 'huffingtonpost.com', 'motherjones.com', 'newrepublic.com', 'salon.com', 'time.com'};
+    top_str = {'cbn.com', 'breitbart.com', 'spectator.org', 'foxnews.com', 'nypost.com', 'nationalreview.com', 'newsmax.com','democracynow.org', 'huffingtonpost.com', 'motherjones.com', 'newrepublic.com', 'salon.com', 'time.com', 'cnn.com', 'bbc.com', 'nytimes.com', 'foxnews.com', ...
+                  'washingtonpost.com', 'usatoday.com', ...
+                  'theguardian.com', 'dailymail.co.uk', 'chinadaily.com.cn', ...
+                  'telegraph.co.uk', 'wsj.com', 'indiatimes.com', 'independent.co.uk', ...
+                  'elpais.com', 'lemonde.fr', 'ft.com', 'bostonglobe.com', ...
+                  'ap.org', 'afp.com', 'reuters.com', 'yahoo.com'};
+    
     top_20_ids = zeros(length(top_20_str),1);
+    
+    top_right_ids = zeros(length(top_right_str),1);
+    top_left_ids  = zeros(length(top_left_str),1);
+    top_ids = zeros(length(top_str),1);
 
     for ii=1:length(top_20_str)
         id_find = find(strcmp(top_20_str{ii}, names_train));
@@ -205,8 +222,38 @@ if plot_top_20 == 1
             top_20_ids(ii) = id_find;
         end
     end
+    
+    for ii=1:length(top_right_str)
+        id_find = find(strcmp(top_right_str{ii}, names_train));
+        if length(id_find) > 0
+            top_right_ids(ii) = id_find;
+        end
+    end
+    
+    for ii=1:length(top_left_str)
+        id_find = find(strcmp(top_left_str{ii}, names_train));
+        if length(id_find) > 0
+            top_left_ids(ii) = id_find;
+        end
+    end
+    
+    for ii=1:length(top_str)
+        id_find = find(strcmp(top_str{ii}, names_train));
+        if length(id_find) > 0
+            top_ids(ii) = id_find;
+        end
+    end
+    
     top_20_ids = top_20_ids(top_20_ids>0);
-    plot_idx = ismember(subidx,top_20_ids); % Keep the ones that are part of the plot
+    top_left_ids = top_left_ids(top_left_ids>0);
+    top_right_ids = top_right_ids(top_right_ids>0);
+    top_ids = top_ids(top_ids>0);
+    
+     plot_idx = ismember(subidx,top_20_ids); % Keep the ones that are part of the plot
+    % plot_idx = ismember(subidx,top_right_ids);
+    % plot_idx = ismember(subidx,top_left_ids);
+    % plot_idx = ismember(subidx,top_ids);
+    % ydata = tsne(P(plot_idx,:));
 else
     plot_idx = subidx;
 end
@@ -218,28 +265,29 @@ end
 % scatter(ydata(plot_idx,1),ydata(plot_idx,2), 300, 'r', 'filled');
 
 figure;
-set(gca, 'FontSize', 25);
+set(gca, 'FontSize', 30);
 scatter(ydata(~plot_idx,1),ydata(~plot_idx,2), ...
               'MarkerEdgeColor',[0 .5 .5],...
-              'MarkerFaceColor',[0 .7 .7],...
+             'MarkerFaceColor',[0 .7 .7],...
               'LineWidth',1.5)
+
 hold on
 scatter(ydata(plot_idx,1),ydata(plot_idx,2), 300, ...
               'MarkerEdgeColor',[.5 0 0],...
               'MarkerFaceColor',[.9 0 0],...
-              'LineWidth',1.5);
-
+                            'LineWidth',1.5);
 plot_names = 2;
 
 % Overlay names
 if plot_names == 1
     dx = 0.75; dy = 0.1; % displacement so the text does not overlay the data points
     t = text(ydata(plot_idx,1)+dx, ydata(plot_idx,2)+dy, names_train(subidx(plot_idx)));
-    set(t, 'FontSize', 22);
+    set(t, 'FontSize', 30);
+    set(t, 'FontWeight', 'bold');
 else
     dx = 0.1; dy = 0.1; % displacement so the text does not overlay the data points
     t = text(ydata(:,1)+dx, ydata(:,2)+dy, names_train(subidx));
-    set(t, 'FontSize', 22);
+    set(t, 'FontSize', 30);
 end
 
 xlabel('PC1')
@@ -289,8 +337,10 @@ scatter(ydata(ap_idx,1),      ydata(ap_idx,2),      300, 'r', 'filled');
 % Overlay names
 t1 = text(ydata(reuters_idx,1) + dx, ydata(reuters_idx,2) + dy, 'Reuters');
 t2 = text(ydata(ap_idx,1)      + dx, ydata(ap_idx,2)      + dy, 'Associated Press');
-set(t1, 'FontSize', 22);
-set(t2, 'FontSize', 22);
+set(t1, 'FontSize', 30);
+set(t2, 'FontSize', 30);
+set(t1, 'FontWeight', 'bold');
+set(t2, 'FontWeight', 'bold');
 colorbar
 xlabel('PC1')
 ylabel('PC2')
@@ -306,8 +356,10 @@ scatter(ydata(ap_idx,1),      ydata(ap_idx,2),      300, 'r', 'filled');
 % Overlay names
 t1 = text(ydata(reuters_idx,1) + dx, ydata(reuters_idx,2) + dy, 'Reuters');
 t2 = text(ydata(ap_idx,1)      + dx, ydata(ap_idx,2)      + dy, 'Associated Press');
-set(t1, 'FontSize', 22);
-set(t2, 'FontSize', 22);
+set(t1, 'FontSize', 30);
+set(t2, 'FontSize', 30);
+set(t1, 'FontWeight', 'bold');
+set(t2, 'FontWeight', 'bold');
 colorbar
 xlabel('PC1')
 ylabel('PC2')
@@ -725,7 +777,7 @@ auc_vals_knn = zeros(iter/100000,1);
 
 % Compute the Area Under the Curve (AUC)
 auc = 0;
-r = randi([1 length(R_idx_te)],1,50);
+r = randi([1 length(R_idx_te)],1,1000);
 
 for i=1:length(r)
     i
@@ -736,7 +788,7 @@ for i=1:length(r)
     
     knn_k = 10;
     
-    [n,d]=knnsearch(Rtr([1:te_iu-1 te_iu+1:end],:),Rtr(te_iu,:),'k',knn_k,'distance','cosine');
+    [n,d]=knnsearch(Rtr([1:te_iu-1 te_iu+1:end],:),Rtr(te_iu,:),'k',knn_k,'distance','jaccard');
     
     sp = sum(Rtr(n,te_ii));
     sn = sum(Rtr(n,te_ji));
@@ -746,7 +798,6 @@ for i=1:length(r)
 end
 auc = auc / length(r);
 fprintf(['AUC test: ',num2str(auc),'\n']);
-auc_vals_knn(step/100000) = auc;
 
 %% Baseline run
 
@@ -803,7 +854,7 @@ for i=1:length(r)
     
     knn_k = 10;
     
-    [n,d]=knnsearch(Rtr([1:te_iu-1 te_iu+1:end],:),Rtr(te_iu,:),'k',knn_k,'distance','cosine');
+    [n,d]=knnsearch(Rtr([1:te_iu-1 te_iu+1:end],:),Rtr(te_iu,:),'k',knn_k,'distance','jaccard');
     
     sp = sum(Rtr(n,te_ii));
     sn = sum(Rtr(n,te_ji));
@@ -814,3 +865,44 @@ end
 auc = auc / length(r);
 fprintf(['AUC test: ',num2str(auc),'\n']);
 auc_vals_knn = auc;
+
+%%
+
+load('../../clustering/W1/sources.csv')
+ydata = [sources(:,3), sources(:,4)];
+
+subidx = sources(:,1);
+
+% Scatter plot t-SNE results
+% figure;
+% scatter(ydata(~plot_idx,1),ydata(~plot_idx,2));
+% hold on;
+% scatter(ydata(plot_idx,1),ydata(plot_idx,2), 300, 'r', 'filled');
+
+figure;
+set(gca, 'FontSize', 30);
+scatter(ydata(:,1),ydata(:,2), ...
+              'MarkerEdgeColor',[0 .5 .5],...
+              'MarkerFaceColor',[0 .7 .7],...
+              'LineWidth',1.5)
+
+plot_names = 2;
+
+% Overlay names
+if plot_names == 1
+    dx = 0.75; dy = 0.1; % displacement so the text does not overlay the data points
+    t = text(ydata(plot_idx,1)+dx, ydata(plot_idx,2)+dy, names_train(subidx(plot_idx)));
+    set(t, 'FontSize', 30);
+    set(t, 'FontWeight', 'bold');
+else
+    dx = 0.1; dy = 0.1; % displacement so the text does not overlay the data points
+    t = text(ydata(:,1)+dx, ydata(:,2)+dy, names_train(subidx));
+    set(t, 'FontSize', 30);
+end
+
+xlabel('PC1')
+ylabel('PC2')
+title('t-SNE projection sources latent space P')
+
+hold off
+

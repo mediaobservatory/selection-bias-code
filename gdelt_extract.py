@@ -38,14 +38,14 @@ times = {
 
 
 start_stamp = times[week]['start']
-file_base_str = ".export.CSV"
+file_base_str = ".mentions.CSV"
 n_files = 768 # indication : ~3k files / month with update every 15 mins // 96 / day
 #save_fname = "test_" + str(n_files) + "_files_" + time.strftime('%Y_%m_%d_%H_%M_%S') + ".csv"
 #save_fname = "sources_" + time.strftime('%Y_%m_%d_%H_%M_%S') + ".csv"
 save_fname = "sources_" + week + ".csv"
 gid_key = 'GLOBALEVENTID'
 names = [gid_key, 'EventTimeDate', 'MentionTimeDate' ,'SourceName']
-news_path = 'dl/events'
+news_path = 'dl/mentions/'
 
 def read_news(filename):
     try:
@@ -115,7 +115,7 @@ def count_sources():
 
 def process_sources():
     event_df = pd.read_csv('sources_W5.csv')
-    event_list = event_df[event_df['counter'] > 5][gid_key]
+    event_list = event_df[event_df['counter']][gid_key]
     base_df = pd.DataFrame()
 
     for i in range(0,n_files):
